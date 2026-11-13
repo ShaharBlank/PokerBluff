@@ -34,6 +34,27 @@ export function combinationLabel(combination: Combination): string {
   return `${kind === "pair" ? "Pair of" : kind === "triple" ? "Three" : "Four"} ${rankName(rank)}`;
 }
 
+export function combinationCards(combination: Combination): Card[] {
+  const count = {
+    single: 1,
+    pair: 2,
+    triple: 3,
+    "full-house": 3,
+    "four-kind": 4,
+  }[combination.kind];
+  const cards = Array.from({ length: count }, (_, suit) => ({
+    rank: combination.rank,
+    suit,
+  }));
+  if (combination.kind === "full-house") {
+    cards.push(
+      { rank: combination.pairRank!, suit: 0 },
+      { rank: combination.pairRank!, suit: 1 },
+    );
+  }
+  return cards;
+}
+
 export function validCombination(value: unknown): value is Combination {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Combination;

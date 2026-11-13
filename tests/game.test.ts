@@ -11,6 +11,7 @@ import {
 } from "../src/lib/game.ts";
 import type { Room } from "../src/lib/game.ts";
 import {
+  combinationCards,
   combinationExists,
   compareCombinations,
   highestCombination,
@@ -23,6 +24,79 @@ const cards = (...ranks: number[]): Card[] =>
     rank,
     suit: ranks.slice(0, i).filter((other) => other === rank).length,
   }));
+
+test("four Aces are illustrated as four distinct Ace card faces", () => {
+  assert.deepEqual(combinationCards({ kind: "four-kind", rank: 14 }), [
+    { rank: 14, suit: 0 },
+    { rank: 14, suit: 1 },
+    { rank: 14, suit: 2 },
+    { rank: 14, suit: 3 },
+  ]);
+});
+
+test("a full house preview contains the triple followed by the selected pair", () => {
+  assert.deepEqual(
+    combinationCards({ kind: "full-house", rank: 13, pairRank: 8 }),
+    [
+      { rank: 13, suit: 0 },
+      { rank: 13, suit: 1 },
+      { rank: 13, suit: 2 },
+      { rank: 8, suit: 0 },
+      { rank: 8, suit: 1 },
+    ],
+  );
+  for (const [kind, count] of [
+    ["single", 1],
+    ["pair", 2],
+    ["triple", 3],
+  ] as const) {
+    assert.equal(combinationCards({ kind, rank: 7 }).length, count);
+  }
+});
+
+test("the latest bid of every player is retained while their own newer bid replaces it", () => {
+  let room = bid(fixture(), "a", { kind: "single", rank: 2 });
+  room = bid(room, "b", { kind: "pair", rank: 8 });
+  room = bid(room, "c", { kind: "triple", rank: 13 });
+  room = bid(room, "d", { kind: "full-house", rank: 13, pairRank: 8 });
+  room = bid(room, "a", { kind: "four-kind", rank: 3 });
+  assert.equal(Object.keys(room.lastBids!).length, 4);
+  assert.deepEqual(room.lastBids!.a.combination, {
+    kind: "four-kind",
+    rank: 3,
+  });
+  assert.deepEqual(room.lastBids!.b.combination, { kind: "pair", rank: 8 });
+  assert.deepEqual(roomView(room, "c").lastBids.d.combination, {
+    kind: "full-house",
+    rank: 13,
+    pairRank: 8,
+  });
+  assert.deepEqual(roomView(room, "visitor").lastBids, {});
+});
+
+test("public bid illustrations clear with the next deal", () => {
+  let room = challenge(
+    bid(fixture(), "a", { kind: "single", rank: 2 }),
+    "d",
+    "bluff",
+  );
+  assert.equal(room.lastBids!.a.combination.rank, 2);
+  room = advanceRoom(room, 300 + REVEAL_MS);
+  assert.deepEqual(roomView(room, "a").lastBids, {});
+});
+
+test("rooms saved before bid history was added still show their current bid and accept new bids", () => {
+  let room = bid(fixture(), "a", { kind: "single", rank: 2 });
+  delete room.lastBids;
+  assert.deepEqual(roomView(room, "b").lastBids.a.combination, {
+    kind: "single",
+    rank: 2,
+  });
+  room = bid(room, "b", { kind: "pair", rank: 8 });
+  assert.equal(Object.keys(room.lastBids!).length, 2);
+  assert.deepEqual(room.lastBids!.a.combination, { kind: "single", rank: 2 });
+  assert.deepEqual(room.lastBids!.b.combination, { kind: "pair", rank: 8 });
+});
 function match(count = 4): Room {
   let room = createRoom("ABC234", "a", "Alice", 100);
   for (let i = 1; i < count; i++)

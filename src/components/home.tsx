@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "./icon";
 import { PlayingCard } from "./playing-card";
 import { Rules } from "./rules";
+import { ThemeToggle } from "./theme-toggle";
 import { request } from "@/lib/client";
 
 export function Home() {
@@ -49,12 +50,15 @@ export function Home() {
           <span className="brand-symbol">✳</span>BLUFF
           <span className="brand-dot">.</span>
         </a>
-        <button
-          className="text-button header-rules"
-          onClick={() => setRules(true)}
-        >
-          <Icon name="help" size={18} /> How to play
-        </button>
+        <div className="home-header-actions">
+          <ThemeToggle />
+          <button
+            className="text-button header-rules"
+            onClick={() => setRules(true)}
+          >
+            <Icon name="help" size={18} /> How to play
+          </button>
+        </div>
       </header>
 
       <section className="hero">

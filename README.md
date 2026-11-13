@@ -15,6 +15,12 @@ Open [localhost:3000](http://localhost:3000). Create a table, share its invite l
 
 Local development works without accounts or external services. It saves rooms in the ignored `.local-data/` directory. For another device on your network, open the site using this computer's LAN address, and create/share the invite link from that address.
 
+## Appearance and bid visuals
+
+Use the sun/moon button in the header to switch between light and dark mode. The initial theme follows the device preference; your selection is saved in the browser and applies across the lobby, game table, and rule dialogs.
+
+Each player's latest bid stays visible as card faces and a text label for the current round. The latest table bid appears in the center, and the bid picker shows a live preview before submission. These illustrations represent the claimed ranks; suits are decorative. Bid history resets when the next hands are dealt. Existing rooms created before this feature continue to work.
+
 ## Deploy to Vercel
 
 1. Push this project to a Git repository and import it in Vercel, or run `npx vercel login` followed by `npx vercel` from this directory. Vercel detects Next.js automatically. The initial deployment can render the site before storage is connected.

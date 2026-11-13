@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Icon } from "./icon";
 import { Avatar } from "./avatar";
 import { PlayingCard } from "./playing-card";
+import { BidVisual } from "./bid-visual";
+import { ThemeToggle } from "./theme-toggle";
 import { Rules } from "./rules";
 import { request } from "@/lib/client";
 import {
@@ -167,6 +169,7 @@ export function GameRoom({ code }: { code: string }) {
           <span className="header-code">{code}</span>
         </div>
         <div className="header-actions">
+          <ThemeToggle />
           <button
             className="text-button"
             onClick={() => setRules(true)}
@@ -451,6 +454,27 @@ export function GameRoom({ code }: { code: string }) {
                                     ? "Thinking…"
                                     : `${player.cards} ${player.cards === 1 ? "card" : "cards"}`}
                                 </small>
+                                {view.lastBids?.[player.id] ? (
+                                  <div
+                                    className="seat-last-bid"
+                                    role="group"
+                                    aria-label={`${player.name}’s latest bid`}
+                                  >
+                                    <span className="seat-bid-label">
+                                      LAST BID
+                                    </span>
+                                    <BidVisual
+                                      combination={
+                                        view.lastBids[player.id].combination
+                                      }
+                                      size="seat"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="seat-no-bid">
+                                    No bid yet
+                                  </span>
+                                )}
                               </div>
                             ))}
                         </div>
@@ -465,24 +489,7 @@ export function GameRoom({ code }: { code: string }) {
                           </span>
                           {view.bid ? (
                             <>
-                              <div className="bid-display">
-                                <span className="bid-rank">
-                                  {rankLabel(view.bid.combination.rank)}
-                                  {view.bid.combination.kind ===
-                                    "full-house" && (
-                                    <small>
-                                      {" "}
-                                      /{" "}
-                                      {rankLabel(
-                                        view.bid.combination.pairRank!,
-                                      )}
-                                    </small>
-                                  )}
-                                </span>
-                                <span className="bid-category">
-                                  {KIND_NAMES[view.bid.combination.kind]}
-                                </span>
-                              </div>
+                              <BidVisual combination={view.bid.combination} />
                               <p>
                                 Somewhere in{" "}
                                 {active.reduce(
@@ -542,6 +549,21 @@ export function GameRoom({ code }: { code: string }) {
                               <Icon name="eye" size={17} /> Out of cards. Still
                               in on the drama.
                             </p>
+                          )}
+                          {view.lastBids?.[view.you!] && (
+                            <div
+                              className="your-last-bid"
+                              role="group"
+                              aria-label="Your latest bid"
+                            >
+                              <span className="eyebrow">YOUR LAST BID</span>
+                              <BidVisual
+                                combination={
+                                  view.lastBids[view.you!].combination
+                                }
+                                size="seat"
+                              />
+                            </div>
                           )}
                         </div>
                       </>
@@ -737,6 +759,12 @@ export function GameRoom({ code }: { code: string }) {
                               ? "Has the floor"
                               : `${player.cards} ${player.cards === 1 ? "card" : "cards"} left`}
                       </span>
+                      {view.phase !== "lobby" && view.lastBids?.[player.id] && (
+                        <BidVisual
+                          combination={view.lastBids[player.id].combination}
+                          size="sidebar"
+                        />
+                      )}
                     </div>
                     {view.phase === "lobby" ? (
                       player.ready && <Icon name="check" size={15} />
@@ -933,6 +961,16 @@ function BidComposer({
           </div>
         </div>
       )}
+      <div
+        className="bid-preview"
+        role="status"
+        aria-label="Your bid preview"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <span className="eyebrow">YOUR BID PREVIEW</span>
+        <BidVisual combination={selected} size="preview" />
+      </div>
       <button
         className="button button-dark button-full place-bid"
         disabled={disabled}

@@ -48,11 +48,13 @@ export type Room = {
   players: Player[];
   turnPlayerId: string | null;
   bid: Bid | null;
+  lastBids?: Record<string, Bid>;
   events: GameEvent[];
   result: RoundResult | null;
   winnerId: string | null;
 };
-export type RoomView = Omit<Room, "players"> & {
+export type RoomView = Omit<Room, "players" | "lastBids"> & {
+  lastBids: Record<string, Bid>;
   you: string | null;
   serverTime: number;
   players: (Omit<Player, "hand"> & { hand: Card[] | null })[];
@@ -120,6 +122,7 @@ export function createRoom(
     players: [{ id, name, cards: 4, hand: [], ready: false, left: false }],
     turnPlayerId: null,
     bid: null,
+    lastBids: {},
     events: [],
     result: null,
     winnerId: null,
@@ -196,6 +199,7 @@ function deal(room: Room, now: number) {
   room.phase = "playing";
   room.round++;
   room.bid = null;
+  room.lastBids = {};
   room.result = null;
   log(room, `Round ${room.round}. Fresh cards, fresh stories.`, "normal", now);
 }
@@ -342,11 +346,13 @@ export function applyAction(
         compareCombinations(combination, room.bid.combination) <= 0
       )
         throw new GameError("Your bid must beat the current bid.");
+      room.lastBids ??= room.bid ? { [room.bid.playerId]: room.bid } : {};
       room.bid = {
         id: `${room.round}-${room.version + 1}`,
         playerId: id,
         combination,
       };
+      room.lastBids[id] = room.bid;
       room.turnPlayerId = nextPlayer(room, id);
       log(
         room,
@@ -437,6 +443,7 @@ export function roomView(
         })),
       turnPlayerId: null,
       bid: null,
+      lastBids: {},
       events: [],
       result: null,
       winnerId: null,
@@ -446,6 +453,8 @@ export function roomView(
   }
   return {
     ...room,
+    lastBids:
+      room.lastBids ?? (room.bid ? { [room.bid.playerId]: room.bid } : {}),
     you: id,
     serverTime: now,
     players: room.players.map((player) => ({

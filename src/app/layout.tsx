@@ -13,7 +13,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          id="bluff-theme-init"
+          dangerouslySetInnerHTML={{
+            __html: `(()=>{let t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';try{const s=localStorage.getItem('bluff:theme');if(s==='dark'||s==='light')t=s}catch{}document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t})()`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

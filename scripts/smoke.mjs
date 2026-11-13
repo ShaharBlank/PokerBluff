@@ -63,6 +63,11 @@ const afterBid = await alice(`${root}/action`, {
   expectedBidId: null,
   round: 1,
 });
+assert.deepEqual(afterBid.lastBids[a.you].combination, {
+  kind: "single",
+  rank: 2,
+});
+assert.equal((await bob(root)).lastBids[a.you].id, afterBid.bid.id);
 await Promise.all(Array.from({ length: 25 }, () => alice(root)));
 // Simultaneous challenges must resolve once, with exactly one card removed.
 const action = {
@@ -91,6 +96,7 @@ await alice(`${root}/action`, { type: "continue" });
 await bob(`${root}/action`, { type: "continue" });
 const next = await casey(`${root}/action`, { type: "continue" });
 assert.equal(next.round, 2);
+assert.deepEqual(next.lastBids, {});
 assert.equal(next.turnPlayerId, b.you);
 assert.equal(
   next.players.find((p) => p.id === c.you).hand.length,
