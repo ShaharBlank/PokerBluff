@@ -2487,9 +2487,6 @@ input:disabled {
     font-size: 10px;
     padding: 9px 4px;
   }
-  .kind-options > button:nth-child(n + 4) {
-    flex-basis: 40%;
-  }
   .rank-options {
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 6px;

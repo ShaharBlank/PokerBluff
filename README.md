@@ -42,10 +42,10 @@ See the official [Upstash integration guide](https://upstash.com/docs/redis/howt
 
 ## Confirmed game rules
 
-- One standard 52-card deck, no jokers. Supports 2–13 players; everyone begins with four cards.
+- One standard 52-card deck, no jokers. Supports 2–10 players; everyone begins with four cards.
 - All hands form a shared pool. Suits do not affect bids. Cards stay fixed while bids go around the table.
-- Every bid must increase: **single < pair < triple < full house < four of a kind**. Ranks run from 2 to Ace. Full houses compare the triple first, then the pair.
-- A bid means _at least_ that combination exists. Four Kings therefore satisfy a claim of three Kings. Two pair, straights, and flushes are not separate combinations.
+- Every bid must increase: **single < pair < two pair < triple < full house < four of a kind**. Ranks run from 2 to Ace. Two pairs compare their higher pair first, then their lower pair. Full houses compare the triple first, then the pair.
+- A bid means _at least_ that combination exists. Four Kings therefore satisfy a claim of three Kings. Straights and flushes are not separate combinations.
 - Any other active player can challenge the latest bid, even outside their turn. **Bluff** claims the combination does not exist. **High Card** claims it is the exact highest permitted combination in the whole pool.
 - A correct challenge costs the bidder one card. An incorrect challenge costs the challenger one card.
 - Everyone sees the hands and the actual highest combination after a challenge. The next deal begins after 12 seconds, or when every surviving player presses **Next round**.
@@ -76,7 +76,7 @@ With the dev server running:
 node scripts/smoke.mjs
 ```
 
-The rule tests cover ranking, challenge outcomes, turn order, private hands, readiness, elimination, a complete 13-player match, and rematches. The HTTP smoke check uses independent cookie sessions and concurrent challenges, checks authorization and cross-origin rejection, and exercises the full ready/deal/bid/reveal/redeal flow. It creates disposable local test rooms.
+The rule tests cover ranking, challenge outcomes, turn order, private hands, readiness, elimination, a complete 10-player match, and rematches. The HTTP smoke check uses independent cookie sessions and concurrent challenges, checks authorization and cross-origin rejection, and exercises the full ready/deal/bid/reveal/redeal flow. It creates disposable local test rooms.
 
 Desktop and 390px mobile layouts were also checked in a browser, including the lobby, bidding, reveal, and next round. Reduced-motion preferences disable animations.
 

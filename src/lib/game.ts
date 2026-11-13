@@ -4,11 +4,12 @@ import {
   combinationLabel,
   compareCombinations,
   highestCombination,
+  MAX_PLAYERS,
   validCombination,
 } from "./rules.ts";
 import type { Card, Combination } from "./rules.ts";
 
-export const MAX_PLAYERS = 13;
+export { MAX_PLAYERS } from "./rules.ts";
 export const REVEAL_MS = 12_000;
 export type Phase = "lobby" | "playing" | "reveal" | "finished";
 export type Player = {
@@ -337,7 +338,7 @@ export function applyAction(
       const combination: Combination = {
         kind: action.combination.kind,
         rank: action.combination.rank,
-        ...(action.combination.kind === "full-house"
+        ...(action.combination.kind === "full-house" || action.combination.kind === "two-pair"
           ? { pairRank: action.combination.pairRank }
           : {}),
       };

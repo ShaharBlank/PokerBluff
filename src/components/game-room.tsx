@@ -14,6 +14,7 @@ import {
   combinationLabel,
   KINDS,
   KIND_NAMES,
+  MAX_PLAYERS,
   rankLabel,
   RANKS,
 } from "@/lib/rules";
@@ -303,7 +304,7 @@ export function GameRoom({ code }: { code: string }) {
                   <div className="lobby-felt">
                     <div className="felt-label">
                       <span>PRIVATE TABLE</span>
-                      <span>{seated.length} / 13 SEATS</span>
+                      <span>{seated.length} / {MAX_PLAYERS} SEATS</span>
                     </div>
                     <div className="lobby-center">
                       <span className="felt-star">✳</span>
@@ -899,7 +900,11 @@ function BidComposer({
         className="rank-options"
         role="group"
         aria-label={
-          selected.kind === "full-house" ? "Triple rank" : "Card rank"
+          selected.kind === "full-house"
+            ? "Triple rank"
+            : selected.kind === "two-pair"
+              ? "Higher pair rank"
+              : "Card rank"
         }
       >
         {RANKS.map((rank) => (
@@ -934,10 +939,16 @@ function BidComposer({
           </button>
         ))}
       </div>
-      {selected.kind === "full-house" && (
+      {(selected.kind === "full-house" || selected.kind === "two-pair") && (
         <div className="pair-rank-row">
-          <span className="eyebrow">PLUS A PAIR OF</span>
-          <div className="rank-options" role="group" aria-label="Pair rank">
+          <span className="eyebrow">
+            {selected.kind === "two-pair" ? "LOWER PAIR" : "PLUS A PAIR OF"}
+          </span>
+          <div
+            className="rank-options"
+            role="group"
+            aria-label={selected.kind === "two-pair" ? "Lower pair rank" : "Pair rank"}
+          >
             {RANKS.map((rank) => (
               <button
                 key={rank}
@@ -945,7 +956,7 @@ function BidComposer({
                   disabled ||
                   !choices.some(
                     (choice) =>
-                      choice.kind === "full-house" &&
+                      choice.kind === selected.kind &&
                       choice.rank === selected.rank &&
                       choice.pairRank === rank,
                   )

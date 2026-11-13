@@ -11,8 +11,10 @@ import {
 } from "../src/lib/game.ts";
 import type { Room } from "../src/lib/game.ts";
 import {
+  availableBids,
   combinationCards,
   combinationExists,
+  combinationLabel,
   compareCombinations,
   highestCombination,
   validCombination,
@@ -165,13 +167,13 @@ test("a match starts only when at least two players have each pressed Start game
   );
 });
 
-test("13 players receive all 52 unique cards; a fourteenth cannot join", () => {
-  const room = match(13);
+test("10 players receive 40 unique cards; an eleventh cannot join", () => {
+  const room = match(10);
   const pool = room.players.flatMap((player) => player.hand);
-  assert.equal(pool.length, 52);
+  assert.equal(pool.length, 40);
   assert.equal(
     new Set(pool.map((card) => `${card.rank}:${card.suit}`)).size,
-    52,
+    40,
   );
   const lobby = { ...room, phase: "lobby" as const };
   assert.throws(() => joinRoom(lobby, "extra", "Extra"), /full/);
@@ -210,8 +212,9 @@ test("suits and unsupported poker hands do not affect the highest combination", 
     rank: 6,
   });
   assert.deepEqual(highestCombination(cards(14, 14, 13, 13, 2)), {
-    kind: "pair",
+    kind: "two-pair",
     rank: 14,
+    pairRank: 13,
   });
   assert.deepEqual(highestCombination(cards(2, 2, 2, 2, 14, 14, 14, 13, 13)), {
     kind: "four-kind",
@@ -223,18 +226,55 @@ test("suits and unsupported poker hands do not affect the highest combination", 
   );
 });
 
+test("two pair compares both ranks, sits between pair and triple, and needs both pairs", () => {
+  const claim: Combination = { kind: "two-pair", rank: 14, pairRank: 12 };
+  assert.ok(compareCombinations(claim, { kind: "pair", rank: 14 }) > 0);
+  assert.ok(compareCombinations(claim, { kind: "triple", rank: 2 }) < 0);
+  assert.ok(compareCombinations(claim, { ...claim, pairRank: 11 }) > 0);
+  assert.ok(compareCombinations(claim, { ...claim, rank: 13 }) > 0);
+  assert.equal(validCombination({ ...claim, pairRank: 14 }), false);
+  assert.equal(validCombination({ ...claim, rank: 11 }), false);
+  assert.equal(combinationExists(claim, cards(14, 14, 12)), false);
+  assert.equal(combinationExists(claim, cards(14, 14, 12, 12)), true);
+  assert.deepEqual(highestCombination(cards(14, 14, 13, 13, 12, 12)), {
+    kind: "two-pair", rank: 14, pairRank: 13,
+  });
+  assert.equal(combinationLabel(claim), "Pairs of Aces and Queens");
+  assert.deepEqual(combinationCards(claim).map((card) => card.rank), [14, 14, 12, 12]);
+  const raises = availableBids({ kind: "two-pair", rank: 14, pairRank: 12 });
+  assert.ok(raises.some((choice) => choice.kind === "two-pair" && choice.pairRank === 13));
+  assert.ok(raises.every((choice) => validCombination(choice) && compareCombinations(choice, claim) > 0));
+});
+
 test("a full house needs different ranks, and the strongest eligible pair is used", () => {
   assert.equal(
     validCombination({ kind: "full-house", rank: 13, pairRank: 13 }),
     false,
   );
   assert.equal(validCombination({ kind: "pair", rank: 15 }), false);
+  assert.equal(validCombination({ kind: "pair", rank: 14, pairRank: 13 }), false);
   assert.equal(validCombination({ kind: "flush", rank: 14 }), false);
   assert.deepEqual(highestCombination(cards(13, 13, 13, 8, 8, 12, 12)), {
     kind: "full-house",
     rank: 13,
     pairRank: 12,
   });
+});
+
+test("a two-pair bid retains both pair ranks through storage, player views, and a challenge", () => {
+  let room = match(3);
+  room.players[0].hand = cards(14, 14, 4, 5);
+  room.players[1].hand = cards(13, 13, 6, 7);
+  room.players[2].hand = cards(2, 3, 8, 9);
+  const claim: Combination = { kind: "two-pair", rank: 14, pairRank: 13 };
+  room = bid(room, "a", claim);
+  assert.deepEqual(roomView(room, "b").bid!.combination, claim);
+  assert.deepEqual(room.lastBids!.a.combination, claim);
+  room = challenge(room, "c", "high-card");
+  assert.equal(room.result!.correct, true);
+  assert.equal(room.result!.loserId, "a");
+  assert.deepEqual(room.result!.highest, claim);
+  assert.equal(room.players[0].cards, 3);
 });
 
 test("the server rejects out-of-turn, equal, lower, and stale bids without changing the source", () => {
@@ -435,8 +475,8 @@ test("names reject hidden controls and ambiguous duplicate seats", () => {
   );
 });
 
-test("a full 13-player match can finish and every subsequent deal respects the remaining allowance", () => {
-  let room = match(13);
+test("a full 10-player match can finish and every subsequent deal respects the remaining allowance", () => {
+  let room = match(10);
   let now = 1000;
   for (let rounds = 0; room.phase !== "finished" && rounds < 52; rounds++) {
     const current = room.turnPlayerId!;

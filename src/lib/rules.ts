@@ -1,6 +1,8 @@
+export const MAX_PLAYERS = 10;
 export const KINDS = [
   "single",
   "pair",
+  "two-pair",
   "triple",
   "full-house",
   "four-kind",
@@ -11,6 +13,7 @@ export type Combination = { kind: Kind; rank: number; pairRank?: number };
 export const KIND_NAMES: Record<Kind, string> = {
   single: "Single",
   pair: "Pair",
+  "two-pair": "Two pair",
   triple: "Triple",
   "full-house": "Full house",
   "four-kind": "Four of a kind",
@@ -31,6 +34,8 @@ export function combinationLabel(combination: Combination): string {
   if (kind === "single") return `${rankLabel(rank)} high`;
   if (kind === "full-house")
     return `${rankName(rank)} full of ${rankName(pairRank!)}`;
+  if (kind === "two-pair")
+    return `Pairs of ${rankName(rank)} and ${rankName(pairRank!)}`;
   return `${kind === "pair" ? "Pair of" : kind === "triple" ? "Three" : "Four"} ${rankName(rank)}`;
 }
 
@@ -38,6 +43,7 @@ export function combinationCards(combination: Combination): Card[] {
   const count = {
     single: 1,
     pair: 2,
+    "two-pair": 2,
     triple: 3,
     "full-house": 3,
     "four-kind": 4,
@@ -46,7 +52,7 @@ export function combinationCards(combination: Combination): Card[] {
     rank: combination.rank,
     suit,
   }));
-  if (combination.kind === "full-house") {
+  if (combination.kind === "full-house" || combination.kind === "two-pair") {
     cards.push(
       { rank: combination.pairRank!, suit: 0 },
       { rank: combination.pairRank!, suit: 1 },
@@ -58,17 +64,21 @@ export function combinationCards(combination: Combination): Card[] {
 export function validCombination(value: unknown): value is Combination {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Combination;
-  return (
-    KINDS.includes(candidate.kind) &&
-    Number.isInteger(candidate.rank) &&
-    candidate.rank >= 2 &&
-    candidate.rank <= 14 &&
-    (candidate.kind !== "full-house" ||
-      (Number.isInteger(candidate.pairRank) &&
-        candidate.pairRank! >= 2 &&
-        candidate.pairRank! <= 14 &&
-        candidate.pairRank !== candidate.rank))
-  );
+  if (
+    !KINDS.includes(candidate.kind) ||
+    !Number.isInteger(candidate.rank) ||
+    candidate.rank < 2 ||
+    candidate.rank > 14
+  ) return false;
+  if (candidate.kind === "full-house" || candidate.kind === "two-pair")
+    return (
+      Number.isInteger(candidate.pairRank) &&
+      candidate.pairRank! >= 2 &&
+      candidate.pairRank! <= 14 &&
+      candidate.pairRank !== candidate.rank &&
+      (candidate.kind !== "two-pair" || candidate.rank > candidate.pairRank!)
+    );
+  return candidate.pairRank === undefined;
 }
 
 export function compareCombinations(a: Combination, b: Combination): number {
@@ -87,14 +97,14 @@ export function combinationExists(
   const needed =
     combination.kind === "single"
       ? 1
-      : combination.kind === "pair"
+      : combination.kind === "pair" || combination.kind === "two-pair"
         ? 2
         : combination.kind === "four-kind"
           ? 4
           : 3;
   return (
     count >= needed &&
-    (combination.kind !== "full-house" ||
+    ((combination.kind !== "full-house" && combination.kind !== "two-pair") ||
       cards.filter((card) => card.rank === combination.pairRank).length >= 2)
   );
 }
@@ -102,10 +112,13 @@ export function combinationExists(
 export function highestCombination(cards: Card[]): Combination | null {
   for (const kind of [...KINDS].reverse()) {
     for (const rank of [...RANKS].reverse()) {
-      if (kind === "full-house") {
+      if (kind === "full-house" || kind === "two-pair") {
         for (const pairRank of [...RANKS].reverse()) {
           const combination = { kind, rank, pairRank };
-          if (rank !== pairRank && combinationExists(combination, cards))
+          if (
+            validCombination(combination) &&
+            combinationExists(combination, cards)
+          )
             return combination;
         }
       } else {
@@ -120,8 +133,10 @@ export function highestCombination(cards: Card[]): Combination | null {
 export function availableBids(previous: Combination | null): Combination[] {
   return KINDS.flatMap<Combination>((kind) =>
     RANKS.flatMap<Combination>((rank) =>
-      kind === "full-house"
-        ? RANKS.filter((pairRank) => pairRank !== rank).map((pairRank) => ({
+      kind === "full-house" || kind === "two-pair"
+        ? RANKS.filter((pairRank) =>
+            kind === "two-pair" ? pairRank < rank : pairRank !== rank,
+          ).map((pairRank) => ({
             kind,
             rank,
             pairRank,

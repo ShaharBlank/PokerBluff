@@ -31,7 +31,7 @@ One deal of private hands, followed by increasing bids until a challenge causes 
 One active player's opportunity to bid. Turns follow seat order; a new round begins with the next surviving player after the preceding round's final bidder.
 
 **Combination**:
-A single, pair, triple, full house, or four of a kind, in increasing strength. Ranks run from 2 to Ace; full houses compare their triple rank before their pair rank.
+A single, pair, two pair, triple, full house, or four of a kind, in increasing strength. Ranks run from 2 to Ace; two pairs compare the higher pair before the lower pair, and full houses compare their triple rank before their pair rank.
 
 **Bluff challenge**:
 A claim that another player's bid does not exist among the combined cards. If correct, the bidder loses a card; otherwise, the challenger loses a card.

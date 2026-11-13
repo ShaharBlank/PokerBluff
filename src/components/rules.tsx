@@ -42,8 +42,9 @@ export function Rules({ onClose }: { onClose: () => void }) {
           <li>
             <b>Make a bigger claim.</b>
             <p>
-              Every bid must beat the last: single → pair → triple → full house
-              → four of a kind. Ranks run from 2 to Ace. Compare full houses by
+              Every bid must beat the last: single → pair → two pair → triple →
+              full house → four of a kind. Ranks run from 2 to Ace. Compare two
+              pairs by the higher pair, then the lower pair; full houses by
               their triple, then their pair.
             </p>
           </li>
