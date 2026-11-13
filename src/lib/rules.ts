@@ -77,6 +77,17 @@ export function combinationCards(combination: Combination): Card[] {
   return cards;
 }
 
+export function requiresHighCardKicker(
+  combination: Combination,
+  totalCards: number,
+): boolean {
+  return (
+    allowsKicker(combination.kind) &&
+    combination.kickerRank === undefined &&
+    totalCards > combinationCards(combination).length
+  );
+}
+
 export function validCombination(value: unknown): value is Combination {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Combination;

@@ -18,6 +18,7 @@ import {
   MAX_PLAYERS,
   rankLabel,
   RANKS,
+  requiresHighCardKicker,
 } from "@/lib/rules";
 import type { Combination, Kind } from "@/lib/rules";
 import type { Action, RoomView } from "@/lib/game";
@@ -142,6 +143,9 @@ export function GameRoom({ code }: { code: string }) {
   const you = view?.players.find((player) => player.id === view.you);
   const seated = view?.players.filter((player) => !player.left) ?? [];
   const active = seated.filter((player) => player.cards > 0);
+  const totalCards = active.reduce((sum, player) => sum + player.cards, 0);
+  const currentBidNeedsKicker =
+    !!view?.bid && requiresHighCardKicker(view.bid.combination, totalCards);
   const yourTurn = view?.phase === "playing" && view.turnPlayerId === view.you;
   const turnName = view?.players.find(
     (player) => player.id === view.turnPlayerId,
@@ -605,7 +609,10 @@ export function GameRoom({ code }: { code: string }) {
                           </button>
                           <button
                             className="challenge-button challenge-high"
-                            disabled={!!busy || !view.bid}
+                            disabled={
+                              !!busy || !view.bid || currentBidNeedsKicker
+                            }
+                            aria-describedby="high-card-hint"
                             onClick={() =>
                               view.bid &&
                               act({
@@ -620,10 +627,12 @@ export function GameRoom({ code }: { code: string }) {
                               High Card
                               <Icon name="crown" size={18} />
                             </span>
-                            <small>
-                              {view.bid?.playerId === view.you
-                                ? "“My bid is the highest.”"
-                                : "“That’s the highest combination.”"}
+                            <small id="high-card-hint">
+                              {currentBidNeedsKicker
+                                ? "Needs a kicker while extra cards remain."
+                                : view.bid?.playerId === view.you
+                                  ? "“My bid is the highest.”"
+                                  : "“That’s the highest combination.”"}
                             </small>
                           </button>
                         </div>
@@ -632,6 +641,7 @@ export function GameRoom({ code }: { code: string }) {
                         <BidComposer
                           key={`${view.round}-${view.bid?.id ?? "first"}`}
                           previous={view.bid?.combination ?? null}
+                          totalCards={totalCards}
                           disabled={!!busy}
                           onBid={(combination, highCard = false) =>
                             act({
@@ -855,10 +865,12 @@ export function GameRoom({ code }: { code: string }) {
 
 function BidComposer({
   previous,
+  totalCards,
   disabled,
   onBid,
 }: {
   previous: Combination | null;
+  totalCards: number;
   disabled: boolean;
   onBid: (combination: Combination, highCard?: boolean) => void;
 }) {
@@ -866,6 +878,7 @@ function BidComposer({
   const [selected, setSelected] = useState<Combination>(
     choices[0] ?? { kind: "single", rank: 2 },
   );
+  const needsKicker = requiresHighCardKicker(selected, totalCards);
   if (!choices.length)
     return (
       <p className="waiting-note">
@@ -1052,14 +1065,17 @@ function BidComposer({
       </button>
       <button
         className="button button-outline button-full declare-high"
-        disabled={disabled}
+        disabled={disabled || needsKicker}
+        aria-describedby="self-high-card-hint"
         onClick={() => onBid(selected, true)}
       >
         <Icon name="crown" size={17} />
         {previous ? "Raise" : "Bid"} + declare High Card
       </button>
-      <p className="action-hint self-high-hint">
-        Reveal immediately. Right: nobody loses a card. Wrong: you lose one.
+      <p className="action-hint self-high-hint" id="self-high-card-hint">
+        {needsKicker
+          ? "Add a kicker to enable High Card: extra cards remain in the pool."
+          : "Reveal immediately. Right: nobody loses a card. Wrong: you lose one."}
       </p>
     </div>
   );

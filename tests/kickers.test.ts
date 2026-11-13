@@ -15,6 +15,7 @@ import {
   combinationLabel,
   compareCombinations,
   highestCombination,
+  requiresHighCardKicker,
   validCombination,
 } from "../src/lib/rules.ts";
 import type { Card, Combination } from "../src/lib/rules.ts";
@@ -190,10 +191,12 @@ test("the highest allowed combination includes exactly one best kicker when avai
   });
 });
 
-test("High Card on a bare pair fails if that pair has an available kicker", () => {
-  const wrong = highCard(claim(table(), { kind: "pair", rank: 14 }), "b");
-  assert.equal(wrong.result!.correct, false);
-  assert.equal(wrong.result!.loserId, "b");
+test("High Card on a bare pair is rejected without revealing hands or removing a card", () => {
+  const bare = claim(table(), { kind: "pair", rank: 14 });
+  const before = structuredClone(bare);
+  assert.throws(() => highCard(bare, "b"), /needs a kicker/);
+  assert.throws(() => highCard(bare, "a"), /needs a kicker/);
+  assert.deepEqual(bare, before);
   const right = highCard(
     claim(table(), { kind: "pair", rank: 14, kickerRank: 13 }),
     "b",
@@ -234,9 +237,9 @@ test("a correct bid plus self High Card reveals atomically with no penalty, then
   );
 });
 
-test("an incorrect self High Card costs only the bidder one card, including a missing kicker", () => {
+test("an incorrect self High Card with a kicker costs only the bidder one card", () => {
   for (const combination of [
-    { kind: "pair", rank: 14 },
+    { kind: "pair", rank: 14, kickerRank: 12 },
     { kind: "four-kind", rank: 14, kickerRank: 13 },
   ] as const) {
     const room = claim(table(), combination, true);
@@ -246,6 +249,78 @@ test("an incorrect self High Card costs only the bidder one card, including a mi
       room.players.map((player) => player.cards),
       [3, 4, 4],
     );
+  }
+});
+
+test("missing-kicker eligibility depends on the public card count, with singles and full houses exempt", () => {
+  for (const combination of [
+    { kind: "pair", rank: 14 },
+    { kind: "two-pair", rank: 14, pairRank: 13 },
+    { kind: "triple", rank: 14 },
+    { kind: "four-kind", rank: 14 },
+  ] as const) {
+    const size = combinationCards(combination).length;
+    assert.equal(requiresHighCardKicker(combination, size), false);
+    assert.equal(requiresHighCardKicker(combination, size + 1), true);
+    assert.equal(
+      requiresHighCardKicker({ ...combination, kickerRank: 12 }, 40),
+      false,
+    );
+  }
+  assert.equal(requiresHighCardKicker({ kind: "single", rank: 14 }, 40), false);
+  assert.equal(
+    requiresHighCardKicker({ kind: "full-house", rank: 14, pairRank: 13 }, 40),
+    false,
+  );
+});
+
+test("all incomplete group bids reject self and other High Card calls while normal bidding remains allowed", () => {
+  for (const combination of [
+    { kind: "pair", rank: 14 },
+    { kind: "two-pair", rank: 14, pairRank: 13 },
+    { kind: "triple", rank: 14 },
+    { kind: "four-kind", rank: 14 },
+  ] as const) {
+    const source = table();
+    const before = structuredClone(source);
+    assert.throws(() => claim(source, combination, true), /needs a kicker/);
+    assert.deepEqual(source, before);
+    const normalBid = claim(source, combination);
+    assert.equal(normalBid.phase, "playing");
+    assert.deepEqual(normalBid.bid!.combination, combination);
+    assert.throws(() => highCard(normalBid, "a"), /needs a kicker/);
+    assert.throws(() => highCard(normalBid, "b"), /needs a kicker/);
+    assert.equal(normalBid.result, null);
+    assert.deepEqual(
+      normalBid.players.map((player) => player.cards),
+      [4, 4, 4],
+    );
+  }
+});
+
+test("bare group bids can still declare High Card when the pool has no room for a kicker", () => {
+  for (const ranks of [
+    [14, 14],
+    [14, 14, 14],
+    [14, 14, 13, 13],
+    [14, 14, 14, 14],
+  ]) {
+    let room = createRoom("ABC234", "a", "Alice", 100);
+    room = joinRoom(room, "b", "Bob", 100);
+    room = applyAction(room, "a", { type: "ready" }, 100);
+    room = applyAction(room, "b", { type: "ready" }, 100);
+    const pool = cards(...ranks);
+    room.players[0].hand = pool.slice(0, 1);
+    room.players[1].hand = pool.slice(1);
+    for (const player of room.players) player.cards = player.hand.length;
+    const highest = highestCombination(pool)!;
+    assert.equal(highest.kickerRank, undefined);
+    const self = claim(room, highest, true);
+    assert.equal(self.result!.correct, true);
+    assert.equal(self.result!.loserId, null);
+    const other = highCard(claim(room, highest), "b");
+    assert.equal(other.result!.correct, true);
+    assert.equal(other.result!.loserId, "a");
   }
 });
 

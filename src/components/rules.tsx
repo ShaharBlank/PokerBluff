@@ -57,7 +57,9 @@ export function Rules({ onClose }: { onClose: () => void }) {
               Call <strong>Bluff</strong> if the bid doesn’t exist. Call{" "}
               <strong>High Card</strong> if you think it is the highest possible
               combination in the pool. Include the highest available kicker when
-              the combination allows one.
+              the combination allows one. When extra cards remain in the pool,
+              High Card is disabled for a pair, two pair, triple, or four of a
+              kind without a kicker.
             </p>
           </li>
           <li>

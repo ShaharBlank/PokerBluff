@@ -5,6 +5,7 @@ import {
   compareCombinations,
   highestCombination,
   MAX_PLAYERS,
+  requiresHighCardKicker,
   validCombination,
 } from "./rules.ts";
 import type { Card, Combination } from "./rules.ts";
@@ -272,6 +273,13 @@ function resolveChallenge(
   const bid = room.bid!;
   const player = room.players.find((candidate) => candidate.id === id)!;
   const cards = room.players.flatMap((candidate) => candidate.hand);
+  if (
+    challenge !== "bluff" &&
+    requiresHighCardKicker(bid.combination, cards.length)
+  )
+    throw new GameError(
+      "High Card needs a kicker when extra cards are in the pool.",
+    );
   const highest = highestCombination(cards);
   const exists = combinationExists(bid.combination, cards);
   const correct =

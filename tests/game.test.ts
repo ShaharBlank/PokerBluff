@@ -360,7 +360,7 @@ test("an incorrect Bluff challenge costs the challenger one card", () => {
 
 test("High Card requires the exact highest combination, not merely an existing bid", () => {
   const wrong = challenge(
-    bid(fixture(), "a", { kind: "triple", rank: 13 }),
+    bid(fixture(), "a", { kind: "triple", rank: 13, kickerRank: 14 }),
     "d",
     "high-card",
   );
@@ -375,7 +375,7 @@ test("High Card requires the exact highest combination, not merely an existing b
   assert.equal(right.result!.correct, true);
   assert.equal(right.result!.loserId, "a");
   const absent = challenge(
-    bid(fixture(), "a", { kind: "four-kind", rank: 14 }),
+    bid(fixture(), "a", { kind: "four-kind", rank: 14, kickerRank: 13 }),
     "d",
     "high-card",
   );

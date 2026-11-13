@@ -58,17 +58,54 @@ await bob(
   },
   409,
 );
+await alice(
+  `${root}/action`,
+  {
+    type: "bid",
+    combination: { kind: "pair", rank: 2 },
+    highCard: true,
+    expectedBidId: null,
+    round: 1,
+  },
+  400,
+);
+const afterBlockedDeclaration = await alice(root);
+assert.equal(afterBlockedDeclaration.version, a.version);
+assert.equal(afterBlockedDeclaration.bid, null);
+assert.equal(afterBlockedDeclaration.result, null);
 const afterBid = await alice(`${root}/action`, {
   type: "bid",
-  combination: { kind: "single", rank: 2 },
+  combination: { kind: "pair", rank: 2 },
   expectedBidId: null,
   round: 1,
 });
 assert.deepEqual(afterBid.lastBids[a.you].combination, {
-  kind: "single",
+  kind: "pair",
   rank: 2,
 });
 assert.equal((await bob(root)).lastBids[a.you].id, afterBid.bid.id);
+for (const client of [alice, bob])
+  await client(
+    `${root}/action`,
+    {
+      type: "challenge",
+      challenge: "high-card",
+      bidId: afterBid.bid.id,
+      round: 1,
+    },
+    400,
+  );
+const afterBlockedCalls = await alice(root);
+assert.equal(afterBlockedCalls.version, afterBid.version);
+assert.equal(afterBlockedCalls.phase, "playing");
+assert.equal(
+  afterBlockedCalls.players.reduce((sum, p) => sum + p.cards, 0),
+  12,
+);
+assert.equal(
+  afterBlockedCalls.players.filter((p) => p.hand !== null).length,
+  1,
+);
 await Promise.all(Array.from({ length: 25 }, () => alice(root)));
 // Simultaneous challenges must resolve once, with exactly one card removed.
 const action = {
@@ -188,5 +225,5 @@ await alice(`${root}/action`, { type: "leave" });
 await bob(`${root}/action`, { type: "leave" });
 await casey(`${root}/action`, { type: "leave" });
 console.log(
-  "HTTP smoke passed: private sessions, readiness, authorization, simultaneous challenges, kickers, atomic self High Card, both penalty outcomes, redeal, turn order, leaving.",
+  "HTTP smoke passed: private sessions, missing-kicker High Card guards, authorization, simultaneous challenges, atomic self High Card, both penalty outcomes, redeal, turn order, leaving.",
 );
