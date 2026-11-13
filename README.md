@@ -46,8 +46,10 @@ See the official [Upstash integration guide](https://upstash.com/docs/redis/howt
 - All hands form a shared pool. Suits do not affect bids. Cards stay fixed while bids go around the table.
 - Every bid must increase: **single < pair < two pair < triple < full house < four of a kind**. Ranks run from 2 to Ace. Two pairs compare their higher pair first, then their lower pair. Full houses compare the triple first, then the pair.
 - A bid means _at least_ that combination exists. Four Kings therefore satisfy a claim of three Kings. Straights and flushes are not separate combinations.
+- Pairs, two pair, triples, and four of a kind can include one optional kicker of a different rank. Compare the main combination before its kicker; any kicker beats no kicker on the same combination. A single has no extra card, and a full house has no kicker. High Card must include the highest available kicker when allowed; a bare pair is not highest if another card exists.
 - Any other active player can challenge the latest bid, even outside their turn. **Bluff** claims the combination does not exist. **High Card** claims it is the exact highest permitted combination in the whole pool.
 - A correct challenge costs the bidder one card. An incorrect challenge costs the challenger one card.
+- A player can use **Bid + declare High Card** to submit a new, higher bid and reveal immediately in one atomic action. They may also declare High Card on their own latest bid. A correct self-declaration costs nobody a card; an incorrect one costs the declarer one card. The usual reveal and next-player order still apply.
 - Everyone sees the hands and the actual highest combination after a challenge. The next deal begins after 12 seconds, or when every surviving player presses **Next round**.
 - The next surviving player after the last bidder starts the next round. The deck is shuffled again and everyone receives their remaining allowance.
 - A player with zero cards stays as a spectator. Spectators see hidden hands during bidding and all hands at the reveal. The last player with cards wins.
@@ -73,7 +75,7 @@ npm run build
 With the dev server running:
 
 ```sh
-node scripts/smoke.mjs
+node --experimental-strip-types scripts/smoke.mjs
 ```
 
 The rule tests cover ranking, challenge outcomes, turn order, private hands, readiness, elimination, a complete 10-player match, and rematches. The HTTP smoke check uses independent cookie sessions and concurrent challenges, checks authorization and cross-origin rejection, and exercises the full ready/deal/bid/reveal/redeal flow. It creates disposable local test rooms.

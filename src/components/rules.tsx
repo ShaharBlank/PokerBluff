@@ -45,7 +45,10 @@ export function Rules({ onClose }: { onClose: () => void }) {
               Every bid must beat the last: single → pair → two pair → triple →
               full house → four of a kind. Ranks run from 2 to Ace. Compare two
               pairs by the higher pair, then the lower pair; full houses by
-              their triple, then their pair.
+              their triple, then their pair. Pairs, two pair, triples, and four
+              of a kind may add one kicker of a different rank. Compare the main
+              combination first, then the kicker. A single already stands alone;
+              a full house has no kicker.
             </p>
           </li>
           <li>
@@ -53,16 +56,23 @@ export function Rules({ onClose }: { onClose: () => void }) {
             <p>
               Call <strong>Bluff</strong> if the bid doesn’t exist. Call{" "}
               <strong>High Card</strong> if you think it is the highest possible
-              combination in the pool.
+              combination in the pool. Include the highest available kicker when
+              the combination allows one.
             </p>
           </li>
           <li>
-            <b>Someone loses a card.</b>
+            <b>Call it, or protect your own bid.</b>
             <p>
               A correct challenge costs the bidder a card. A wrong challenge
               costs the challenger a card. Everyone sees the hands for 12
               seconds, then a fresh deal starts. The next surviving player after
               the last bidder goes first.
+            </p>
+            <p>
+              Bid + declare High Card to reveal immediately on your own claim.
+              If you are right, no one loses a card. If you are wrong, you lose
+              one. You can also declare it on your latest bid before another
+              move arrives.
             </p>
           </li>
           <li>

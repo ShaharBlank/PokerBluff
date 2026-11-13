@@ -14,7 +14,7 @@ export function BidVisual({
       <div
         className="bid-visual-cards"
         aria-hidden="true"
-        key={`${combination.kind}-${combination.rank}-${combination.pairRank ?? ""}`}
+        key={`${combination.kind}-${combination.rank}-${combination.pairRank ?? ""}-${combination.kickerRank ?? ""}`}
       >
         {combinationCards(combination).map((card) => (
           <PlayingCard key={`${card.rank}-${card.suit}`} {...card} />

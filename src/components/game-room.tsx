@@ -10,6 +10,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { Rules } from "./rules";
 import { request } from "@/lib/client";
 import {
+  allowsKicker,
   availableBids,
   combinationLabel,
   KINDS,
@@ -304,7 +305,9 @@ export function GameRoom({ code }: { code: string }) {
                   <div className="lobby-felt">
                     <div className="felt-label">
                       <span>PRIVATE TABLE</span>
-                      <span>{seated.length} / {MAX_PLAYERS} SEATS</span>
+                      <span>
+                        {seated.length} / {MAX_PLAYERS} SEATS
+                      </span>
                     </div>
                     <div className="lobby-center">
                       <span className="felt-star">✳</span>
@@ -602,11 +605,7 @@ export function GameRoom({ code }: { code: string }) {
                           </button>
                           <button
                             className="challenge-button challenge-high"
-                            disabled={
-                              !!busy ||
-                              !view.bid ||
-                              view.bid.playerId === view.you
-                            }
+                            disabled={!!busy || !view.bid}
                             onClick={() =>
                               view.bid &&
                               act({
@@ -621,7 +620,11 @@ export function GameRoom({ code }: { code: string }) {
                               High Card
                               <Icon name="crown" size={18} />
                             </span>
-                            <small>“That’s the highest combination.”</small>
+                            <small>
+                              {view.bid?.playerId === view.you
+                                ? "“My bid is the highest.”"
+                                : "“That’s the highest combination.”"}
+                            </small>
                           </button>
                         </div>
                       )}
@@ -630,10 +633,11 @@ export function GameRoom({ code }: { code: string }) {
                           key={`${view.round}-${view.bid?.id ?? "first"}`}
                           previous={view.bid?.combination ?? null}
                           disabled={!!busy}
-                          onBid={(combination) =>
+                          onBid={(combination, highCard = false) =>
                             act({
                               type: "bid",
                               combination,
+                              highCard,
                               round: view.round,
                               expectedBidId: view.bid?.id ?? null,
                             })
@@ -663,7 +667,8 @@ export function GameRoom({ code }: { code: string }) {
                       )}
                       {!view.bid && !!you?.cards && (
                         <p className="action-hint">
-                          Bluff and High Card open after the first bid.
+                          Call Bluff or High Card after a bid, or declare High
+                          Card with your own claim.
                         </p>
                       )}
                     </div>
@@ -855,7 +860,7 @@ function BidComposer({
 }: {
   previous: Combination | null;
   disabled: boolean;
-  onBid: (combination: Combination) => void;
+  onBid: (combination: Combination, highCard?: boolean) => void;
 }) {
   const choices = availableBids(previous);
   const [selected, setSelected] = useState<Combination>(
@@ -926,7 +931,8 @@ function BidComposer({
                   (choice) =>
                     choice.kind === selected.kind &&
                     choice.rank === rank &&
-                    choice.pairRank === selected.pairRank,
+                    choice.pairRank === selected.pairRank &&
+                    choice.kickerRank === selected.kickerRank,
                 ) ??
                   choices.find(
                     (choice) =>
@@ -947,7 +953,9 @@ function BidComposer({
           <div
             className="rank-options"
             role="group"
-            aria-label={selected.kind === "two-pair" ? "Lower pair rank" : "Pair rank"}
+            aria-label={
+              selected.kind === "two-pair" ? "Lower pair rank" : "Pair rank"
+            }
           >
             {RANKS.map((rank) => (
               <button
@@ -964,9 +972,61 @@ function BidComposer({
                 className={rank === selected.pairRank ? "selected" : ""}
                 aria-label={`${rankLabel(rank)} as the pair`}
                 aria-pressed={rank === selected.pairRank}
-                onClick={() => setSelected({ ...selected, pairRank: rank })}
+                onClick={() =>
+                  setSelected(
+                    choices.find(
+                      (choice) =>
+                        choice.kind === selected.kind &&
+                        choice.rank === selected.rank &&
+                        choice.pairRank === rank &&
+                        choice.kickerRank === selected.kickerRank,
+                    ) ??
+                      choices.find(
+                        (choice) =>
+                          choice.kind === selected.kind &&
+                          choice.rank === selected.rank &&
+                          choice.pairRank === rank,
+                      )!,
+                  )
+                }
               >
                 {rankLabel(rank)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {allowsKicker(selected.kind) && (
+        <div className="pair-rank-row">
+          <span className="eyebrow">OPTIONAL KICKER · ONE EXTRA CARD</span>
+          <div
+            className="rank-options kicker-options"
+            role="group"
+            aria-label="Kicker rank"
+          >
+            {[undefined, ...RANKS].map((kickerRank) => (
+              <button
+                key={kickerRank ?? "none"}
+                disabled={
+                  disabled ||
+                  !choices.some(
+                    (choice) =>
+                      choice.kind === selected.kind &&
+                      choice.rank === selected.rank &&
+                      choice.pairRank === selected.pairRank &&
+                      choice.kickerRank === kickerRank,
+                  )
+                }
+                className={kickerRank === selected.kickerRank ? "selected" : ""}
+                aria-label={
+                  kickerRank === undefined
+                    ? "No kicker"
+                    : `${rankLabel(kickerRank)} as the kicker`
+                }
+                aria-pressed={kickerRank === selected.kickerRank}
+                onClick={() => setSelected({ ...selected, kickerRank })}
+              >
+                {kickerRank === undefined ? "None" : rankLabel(kickerRank)}
               </button>
             ))}
           </div>
@@ -990,6 +1050,17 @@ function BidComposer({
         {previous ? "Raise" : "Bid"} — {combinationLabel(selected)}
         <Icon name="arrow" size={17} />
       </button>
+      <button
+        className="button button-outline button-full declare-high"
+        disabled={disabled}
+        onClick={() => onBid(selected, true)}
+      >
+        <Icon name="crown" size={17} />
+        {previous ? "Raise" : "Bid"} + declare High Card
+      </button>
+      <p className="action-hint self-high-hint">
+        Reveal immediately. Right: nobody loses a card. Wrong: you lose one.
+      </p>
     </div>
   );
 }
@@ -1033,7 +1104,9 @@ function RoundReveal({ view }: { view: RoomView }) {
             ? "LAST ONE STANDING"
             : result?.challenge === "departure"
               ? "A CHANGE AT THE TABLE"
-              : `${challenger?.name.toUpperCase()} CALLED ${result?.challenge === "bluff" ? "BLUFF" : "HIGH CARD"}`}
+              : result?.challenge === "self-high-card"
+                ? `${challenger?.name.toUpperCase()} DECLARED THEIR OWN HIGH CARD`
+                : `${challenger?.name.toUpperCase()} CALLED ${result?.challenge === "bluff" ? "BLUFF" : "HIGH CARD"}`}
         </span>
         <h2>
           {view.phase === "finished"
@@ -1047,7 +1120,7 @@ function RoundReveal({ view }: { view: RoomView }) {
                 : "Called it wrong."}
         </h2>
         <p>{reason}</p>
-        {result?.challenge !== "departure" && (
+        {result?.challenge !== "departure" && loser ? (
           <span className="loser-note">
             {loser?.id === view.you ? "You lose" : `${loser?.name} loses`} a
             card.
@@ -1055,7 +1128,11 @@ function RoundReveal({ view }: { view: RoomView }) {
               ? " Out of cards, into the audience."
               : ` ${loser?.cards} left.`}
           </span>
-        )}
+        ) : result?.challenge === "self-high-card" && result.correct ? (
+          <span className="loser-note">
+            No one loses a card. On to the next round.
+          </span>
+        ) : null}
       </div>
       <div className="reveal-facts">
         {result?.bid && (
@@ -1094,7 +1171,8 @@ function RoundReveal({ view }: { view: RoomView }) {
                   {...card}
                   className={
                     card.rank === result.highest?.rank ||
-                    card.rank === result.highest?.pairRank
+                    card.rank === result.highest?.pairRank ||
+                    card.rank === result.highest?.kickerRank
                       ? "card-matched"
                       : ""
                   }

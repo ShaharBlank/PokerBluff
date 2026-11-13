@@ -1869,6 +1869,18 @@ input:disabled {
   gap: 5px;
   margin-top: 13px;
 }
+.kicker-options {
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+}
+.kicker-options > button:first-child {
+  font-size: 9px;
+}
+.declare-high {
+  margin-top: 10px;
+}
+.self-high-hint {
+  line-height: 1.6;
+}
 .rank-options > button {
   border: 1px solid var(--control-border);
   background: var(--field);

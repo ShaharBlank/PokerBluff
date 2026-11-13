@@ -125,13 +125,19 @@ function fixture(): Room {
     player.hand = hands[index];
   return room;
 }
-function bid(room: Room, id: string, combination: Combination): Room {
+function bid(
+  room: Room,
+  id: string,
+  combination: Combination,
+  highCard = false,
+): Room {
   return applyAction(
     room,
     id,
     {
       type: "bid",
       combination,
+      highCard,
       expectedBidId: room.bid?.id ?? null,
       round: room.round,
     },
@@ -215,10 +221,12 @@ test("suits and unsupported poker hands do not affect the highest combination", 
     kind: "two-pair",
     rank: 14,
     pairRank: 13,
+    kickerRank: 2,
   });
   assert.deepEqual(highestCombination(cards(2, 2, 2, 2, 14, 14, 14, 13, 13)), {
     kind: "four-kind",
     rank: 2,
+    kickerRank: 14,
   });
   assert.equal(
     combinationExists({ kind: "triple", rank: 13 }, cards(13, 13, 13, 13)),
@@ -237,13 +245,28 @@ test("two pair compares both ranks, sits between pair and triple, and needs both
   assert.equal(combinationExists(claim, cards(14, 14, 12)), false);
   assert.equal(combinationExists(claim, cards(14, 14, 12, 12)), true);
   assert.deepEqual(highestCombination(cards(14, 14, 13, 13, 12, 12)), {
-    kind: "two-pair", rank: 14, pairRank: 13,
+    kind: "two-pair",
+    rank: 14,
+    pairRank: 13,
+    kickerRank: 12,
   });
   assert.equal(combinationLabel(claim), "Pairs of Aces and Queens");
-  assert.deepEqual(combinationCards(claim).map((card) => card.rank), [14, 14, 12, 12]);
+  assert.deepEqual(
+    combinationCards(claim).map((card) => card.rank),
+    [14, 14, 12, 12],
+  );
   const raises = availableBids({ kind: "two-pair", rank: 14, pairRank: 12 });
-  assert.ok(raises.some((choice) => choice.kind === "two-pair" && choice.pairRank === 13));
-  assert.ok(raises.every((choice) => validCombination(choice) && compareCombinations(choice, claim) > 0));
+  assert.ok(
+    raises.some(
+      (choice) => choice.kind === "two-pair" && choice.pairRank === 13,
+    ),
+  );
+  assert.ok(
+    raises.every(
+      (choice) =>
+        validCombination(choice) && compareCombinations(choice, claim) > 0,
+    ),
+  );
 });
 
 test("a full house needs different ranks, and the strongest eligible pair is used", () => {
@@ -252,7 +275,10 @@ test("a full house needs different ranks, and the strongest eligible pair is use
     false,
   );
   assert.equal(validCombination({ kind: "pair", rank: 15 }), false);
-  assert.equal(validCombination({ kind: "pair", rank: 14, pairRank: 13 }), false);
+  assert.equal(
+    validCombination({ kind: "pair", rank: 14, pairRank: 13 }),
+    false,
+  );
   assert.equal(validCombination({ kind: "flush", rank: 14 }), false);
   assert.deepEqual(highestCombination(cards(13, 13, 13, 8, 8, 12, 12)), {
     kind: "full-house",
@@ -261,12 +287,17 @@ test("a full house needs different ranks, and the strongest eligible pair is use
   });
 });
 
-test("a two-pair bid retains both pair ranks through storage, player views, and a challenge", () => {
+test("a two-pair bid retains both pair ranks and its kicker through storage, views, and a challenge", () => {
   let room = match(3);
   room.players[0].hand = cards(14, 14, 4, 5);
   room.players[1].hand = cards(13, 13, 6, 7);
   room.players[2].hand = cards(2, 3, 8, 9);
-  const claim: Combination = { kind: "two-pair", rank: 14, pairRank: 13 };
+  const claim: Combination = {
+    kind: "two-pair",
+    rank: 14,
+    pairRank: 13,
+    kickerRank: 9,
+  };
   room = bid(room, "a", claim);
   assert.deepEqual(roomView(room, "b").bid!.combination, claim);
   assert.deepEqual(room.lastBids!.a.combination, claim);

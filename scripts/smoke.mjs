@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { highestCombination } from "../src/lib/rules.ts";
 
 const base = process.env.TEST_URL ?? "http://localhost:3000";
 function player() {
@@ -102,9 +103,90 @@ assert.equal(
   next.players.find((p) => p.id === c.you).hand.length,
   next.players.find((p) => p.id === c.you).cards,
 );
+// Each test client contributes only its own hand to the integration-test oracle.
+const clients = [alice, bob, casey];
+async function poolForTest() {
+  const views = await Promise.all(clients.map((client) => client(root)));
+  return views.flatMap(
+    (view) => view.players.find((p) => p.id === view.you).hand,
+  );
+}
+const best = highestCombination(await poolForTest());
+const protectedBid = await bob(`${root}/action`, {
+  type: "bid",
+  combination: best,
+  highCard: true,
+  expectedBidId: null,
+  round: 2,
+});
+assert.equal(protectedBid.phase, "reveal");
+assert.equal(protectedBid.result.challenge, "self-high-card");
+assert.equal(protectedBid.result.correct, true);
+assert.equal(protectedBid.result.loserId, null);
+assert.equal(
+  protectedBid.players.reduce((sum, p) => sum + p.cards, 0),
+  11,
+);
+assert.equal((await alice(root)).result.loserId, null);
+await casey(
+  `${root}/action`,
+  {
+    type: "challenge",
+    challenge: "high-card",
+    bidId: protectedBid.bid.id,
+    round: 2,
+  },
+  409,
+);
+for (const client of clients)
+  await client(`${root}/action`, { type: "continue" });
+const third = await casey(root);
+assert.equal(third.round, 3);
+assert.equal(third.turnPlayerId, c.you);
+await casey(
+  `${root}/action`,
+  {
+    type: "bid",
+    combination: { kind: "pair", rank: 14, kickerRank: 13 },
+    highCard: "yes",
+    expectedBidId: null,
+    round: 3,
+  },
+  400,
+);
+await casey(
+  `${root}/action`,
+  {
+    type: "bid",
+    combination: { kind: "pair", rank: 14, kickerRank: 14 },
+    expectedBidId: null,
+    round: 3,
+  },
+  400,
+);
+const pool = await poolForTest();
+const missingQuad = Array.from({ length: 12 }, (_, i) => i + 2).find(
+  (rank) => pool.filter((card) => card.rank === rank).length < 4,
+);
+const wrongClaim = { kind: "four-kind", rank: missingQuad, kickerRank: 14 };
+const wrongSelf = await casey(`${root}/action`, {
+  type: "bid",
+  combination: wrongClaim,
+  highCard: true,
+  expectedBidId: null,
+  round: 3,
+});
+assert.deepEqual(wrongSelf.bid.combination, wrongClaim);
+assert.deepEqual(wrongSelf.result.bid, wrongClaim);
+assert.equal(wrongSelf.result.correct, false);
+assert.equal(wrongSelf.result.loserId, c.you);
+assert.equal(
+  wrongSelf.players.reduce((sum, p) => sum + p.cards, 0),
+  10,
+);
 await alice(`${root}/action`, { type: "leave" });
 await bob(`${root}/action`, { type: "leave" });
 await casey(`${root}/action`, { type: "leave" });
 console.log(
-  "HTTP smoke passed: independent sessions, readiness, private hands, authorization, simultaneous challenges, redeal, turn order, leaving.",
+  "HTTP smoke passed: private sessions, readiness, authorization, simultaneous challenges, kickers, atomic self High Card, both penalty outcomes, redeal, turn order, leaving.",
 );

@@ -100,12 +100,16 @@ export function parseAction(body: Record<string, unknown>): Action {
   if (
     body.type === "bid" &&
     validCombination(body.combination) &&
+    (body.highCard === undefined || typeof body.highCard === "boolean") &&
     (body.expectedBidId === null || typeof body.expectedBidId === "string") &&
     Number.isInteger(body.round)
   )
     return {
       type: "bid",
       combination: body.combination,
+      ...(body.highCard === undefined
+        ? {}
+        : { highCard: body.highCard as boolean }),
       expectedBidId: body.expectedBidId,
       round: body.round as number,
     };

@@ -9,7 +9,12 @@ export const KINDS = [
 ] as const;
 export type Kind = (typeof KINDS)[number];
 export type Card = { rank: number; suit: number };
-export type Combination = { kind: Kind; rank: number; pairRank?: number };
+export type Combination = {
+  kind: Kind;
+  rank: number;
+  pairRank?: number;
+  kickerRank?: number;
+};
 export const KIND_NAMES: Record<Kind, string> = {
   single: "Single",
   pair: "Pair",
@@ -28,15 +33,24 @@ const rankNames: Record<number, string> = {
   14: "Aces",
 };
 export const rankName = (rank: number) => rankNames[rank] ?? `${rank}s`;
+export const allowsKicker = (kind: Kind) =>
+  kind === "pair" ||
+  kind === "two-pair" ||
+  kind === "triple" ||
+  kind === "four-kind";
 
 export function combinationLabel(combination: Combination): string {
   const { kind, rank, pairRank } = combination;
   if (kind === "single") return `${rankLabel(rank)} high`;
   if (kind === "full-house")
     return `${rankName(rank)} full of ${rankName(pairRank!)}`;
-  if (kind === "two-pair")
-    return `Pairs of ${rankName(rank)} and ${rankName(pairRank!)}`;
-  return `${kind === "pair" ? "Pair of" : kind === "triple" ? "Three" : "Four"} ${rankName(rank)}`;
+  const label =
+    kind === "two-pair"
+      ? `Pairs of ${rankName(rank)} and ${rankName(pairRank!)}`
+      : `${kind === "pair" ? "Pair of" : kind === "triple" ? "Three" : "Four"} ${rankName(rank)}`;
+  return combination.kickerRank === undefined
+    ? label
+    : `${label} + ${rankLabel(combination.kickerRank)}`;
 }
 
 export function combinationCards(combination: Combination): Card[] {
@@ -58,6 +72,8 @@ export function combinationCards(combination: Combination): Card[] {
       { rank: combination.pairRank!, suit: 1 },
     );
   }
+  if (combination.kickerRank !== undefined)
+    cards.push({ rank: combination.kickerRank, suit: 0 });
   return cards;
 }
 
@@ -69,7 +85,18 @@ export function validCombination(value: unknown): value is Combination {
     !Number.isInteger(candidate.rank) ||
     candidate.rank < 2 ||
     candidate.rank > 14
-  ) return false;
+  )
+    return false;
+  if (
+    candidate.kickerRank !== undefined &&
+    (!allowsKicker(candidate.kind) ||
+      !Number.isInteger(candidate.kickerRank) ||
+      candidate.kickerRank < 2 ||
+      candidate.kickerRank > 14 ||
+      candidate.kickerRank === candidate.rank ||
+      candidate.kickerRank === candidate.pairRank)
+  )
+    return false;
   if (candidate.kind === "full-house" || candidate.kind === "two-pair")
     return (
       Number.isInteger(candidate.pairRank) &&
@@ -85,7 +112,8 @@ export function compareCombinations(a: Combination, b: Combination): number {
   return (
     KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) ||
     a.rank - b.rank ||
-    (a.pairRank ?? 0) - (b.pairRank ?? 0)
+    (a.pairRank ?? 0) - (b.pairRank ?? 0) ||
+    (a.kickerRank ?? 0) - (b.kickerRank ?? 0)
   );
 }
 
@@ -104,9 +132,28 @@ export function combinationExists(
           : 3;
   return (
     count >= needed &&
+    (combination.kickerRank === undefined ||
+      cards.some((card) => card.rank === combination.kickerRank)) &&
     ((combination.kind !== "full-house" && combination.kind !== "two-pair") ||
       cards.filter((card) => card.rank === combination.pairRank).length >= 2)
   );
+}
+
+function withHighestKicker(
+  combination: Combination,
+  cards: Card[],
+): Combination {
+  if (!allowsKicker(combination.kind)) return combination;
+  const kickerRank = Math.max(
+    0,
+    ...cards
+      .filter(
+        (card) =>
+          card.rank !== combination.rank && card.rank !== combination.pairRank,
+      )
+      .map((card) => card.rank),
+  );
+  return kickerRank ? { ...combination, kickerRank } : combination;
 }
 
 export function highestCombination(cards: Card[]): Combination | null {
@@ -119,11 +166,12 @@ export function highestCombination(cards: Card[]): Combination | null {
             validCombination(combination) &&
             combinationExists(combination, cards)
           )
-            return combination;
+            return withHighestKicker(combination, cards);
         }
       } else {
         const combination = { kind, rank };
-        if (combinationExists(combination, cards)) return combination;
+        if (combinationExists(combination, cards))
+          return withHighestKicker(combination, cards);
       }
     }
   }
@@ -131,7 +179,7 @@ export function highestCombination(cards: Card[]): Combination | null {
 }
 
 export function availableBids(previous: Combination | null): Combination[] {
-  return KINDS.flatMap<Combination>((kind) =>
+  const bases = KINDS.flatMap<Combination>((kind) =>
     RANKS.flatMap<Combination>((rank) =>
       kind === "full-house" || kind === "two-pair"
         ? RANKS.filter((pairRank) =>
@@ -143,8 +191,19 @@ export function availableBids(previous: Combination | null): Combination[] {
           }))
         : [{ kind, rank }],
     ),
-  ).filter(
-    (combination) =>
-      !previous || compareCombinations(combination, previous) > 0,
   );
+  return bases
+    .flatMap((combination) => [
+      combination,
+      ...(allowsKicker(combination.kind)
+        ? RANKS.filter(
+            (rank) =>
+              rank !== combination.rank && rank !== combination.pairRank,
+          ).map((kickerRank) => ({ ...combination, kickerRank }))
+        : []),
+    ])
+    .filter(
+      (combination) =>
+        !previous || compareCombinations(combination, previous) > 0,
+    );
 }

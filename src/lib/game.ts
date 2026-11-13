@@ -28,14 +28,14 @@ export type GameEvent = {
   at: number;
 };
 export type RoundResult = {
-  challenge: "bluff" | "high-card" | "departure";
+  challenge: "bluff" | "high-card" | "self-high-card" | "departure";
   challengerId: string | null;
   bidderId: string | null;
   bid: Combination | null;
   highest: Combination | null;
   exists: boolean;
   correct: boolean;
-  loserId: string;
+  loserId: string | null;
   hands: { id: string; name: string; cards: Card[] }[];
   nextRoundAt: number;
 };
@@ -68,6 +68,7 @@ export type Action =
   | {
       type: "bid";
       combination: Combination;
+      highCard?: boolean;
       expectedBidId: string | null;
       round: number;
     }
@@ -262,6 +263,63 @@ export function advanceRoom(source: Room, now = Date.now()): Room {
   return room;
 }
 
+function resolveChallenge(
+  room: Room,
+  id: string,
+  challenge: "bluff" | "high-card" | "self-high-card",
+  now: number,
+) {
+  const bid = room.bid!;
+  const player = room.players.find((candidate) => candidate.id === id)!;
+  const cards = room.players.flatMap((candidate) => candidate.hand);
+  const highest = highestCombination(cards);
+  const exists = combinationExists(bid.combination, cards);
+  const correct =
+    challenge === "bluff"
+      ? !exists
+      : highest !== null && compareCombinations(highest, bid.combination) === 0;
+  const loserId =
+    challenge === "self-high-card"
+      ? correct
+        ? null
+        : id
+      : correct
+        ? bid.playerId
+        : id;
+  const loser = room.players.find((candidate) => candidate.id === loserId);
+  room.result = {
+    challenge,
+    challengerId: id,
+    bidderId: bid.playerId,
+    bid: bid.combination,
+    highest,
+    exists,
+    correct,
+    loserId,
+    hands: room.players
+      .filter((candidate) => candidate.hand.length)
+      .map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name,
+        cards: candidate.hand,
+      })),
+    nextRoundAt: now + REVEAL_MS,
+  };
+  if (loser) loser.cards--;
+  room.phase = "reveal";
+  for (const candidate of room.players) candidate.ready = false;
+  const penalty = loser
+    ? `${loser.name} loses a card${loser.cards === 0 ? " and becomes a spectator" : ""}.`
+    : "No one loses a card.";
+  log(
+    room,
+    `${player.name} ${challenge === "self-high-card" ? "declared High Card on their own bid" : `called ${challenge === "bluff" ? "Bluff" : "High Card"}`}. ${correct ? "Good read!" : "Wrong read."} ${penalty}`,
+    "challenge",
+    now,
+  );
+  finishIfWon(room, now);
+}
+
 export function applyAction(
   source: Room,
   id: string,
@@ -338,8 +396,12 @@ export function applyAction(
       const combination: Combination = {
         kind: action.combination.kind,
         rank: action.combination.rank,
-        ...(action.combination.kind === "full-house" || action.combination.kind === "two-pair"
+        ...(action.combination.kind === "full-house" ||
+        action.combination.kind === "two-pair"
           ? { pairRank: action.combination.pairRank }
+          : {}),
+        ...(action.combination.kickerRank !== undefined
+          ? { kickerRank: action.combination.kickerRank }
           : {}),
       };
       if (
@@ -361,54 +423,23 @@ export function applyAction(
         "bid",
         now,
       );
+      if (action.highCard) resolveChallenge(room, id, "self-high-card", now);
     } else {
       if (!room.bid || room.bid.id !== action.bidId)
         throw new GameError(
           "That bid has changed or was already challenged.",
           409,
         );
-      if (room.bid.playerId === id)
-        throw new GameError("You can’t challenge your own bid.");
+      if (room.bid.playerId === id && action.challenge !== "high-card")
+        throw new GameError("You can’t call Bluff on your own bid.");
       if (action.challenge !== "bluff" && action.challenge !== "high-card")
         throw new GameError("Choose Bluff or High Card.");
-      const cards = room.players.flatMap((candidate) => candidate.hand);
-      const highest = highestCombination(cards);
-      const exists = combinationExists(room.bid.combination, cards);
-      const correct =
-        action.challenge === "bluff"
-          ? !exists
-          : highest !== null &&
-            compareCombinations(highest, room.bid.combination) === 0;
-      const loserId = correct ? room.bid.playerId : id;
-      const loser = room.players.find((candidate) => candidate.id === loserId)!;
-      room.result = {
-        challenge: action.challenge,
-        challengerId: id,
-        bidderId: room.bid.playerId,
-        bid: room.bid.combination,
-        highest,
-        exists,
-        correct,
-        loserId,
-        hands: room.players
-          .filter((candidate) => candidate.hand.length)
-          .map((candidate) => ({
-            id: candidate.id,
-            name: candidate.name,
-            cards: candidate.hand,
-          })),
-        nextRoundAt: now + REVEAL_MS,
-      };
-      loser.cards--;
-      room.phase = "reveal";
-      for (const candidate of room.players) candidate.ready = false;
-      log(
+      resolveChallenge(
         room,
-        `${player.name} called ${action.challenge === "bluff" ? "Bluff" : "High Card"}. ${correct ? "Good read!" : "Wrong read."} ${loser.name} loses a card${loser.cards === 0 ? " and becomes a spectator" : ""}.`,
-        "challenge",
+        id,
+        room.bid.playerId === id ? "self-high-card" : action.challenge,
         now,
       );
-      finishIfWon(room, now);
     }
   }
   room.version++;
