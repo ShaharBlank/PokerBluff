@@ -71,10 +71,15 @@ export function Rules({ onClose }: { onClose: () => void }) {
               the last bidder goes first.
             </p>
             <p>
+              A correct High Card call also gives its caller one extra card for
+              the next deal. Bluff calls do not award a card. Bonuses are
+              skipped when all 52 cards were already in play.
+            </p>
+            <p>
               Bid + declare High Card to reveal immediately on your own claim.
-              If you are right, no one loses a card. If you are wrong, you lose
-              one. You can also declare it on your latest bid before another
-              move arrives.
+              If you are right, you gain a card and no one loses a card. If you
+              are wrong, you lose one. You can also declare it on your latest
+              bid before another move arrives.
             </p>
           </li>
           <li>

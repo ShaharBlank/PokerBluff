@@ -160,9 +160,14 @@ assert.equal(protectedBid.phase, "reveal");
 assert.equal(protectedBid.result.challenge, "self-high-card");
 assert.equal(protectedBid.result.correct, true);
 assert.equal(protectedBid.result.loserId, null);
+assert.equal(protectedBid.result.bonusPlayerId, b.you);
+assert.equal(
+  protectedBid.players.find((p) => p.id === b.you).cards,
+  next.players.find((p) => p.id === b.you).cards + 1,
+);
 assert.equal(
   protectedBid.players.reduce((sum, p) => sum + p.cards, 0),
-  11,
+  12,
 );
 assert.equal((await alice(root)).result.loserId, null);
 await casey(
@@ -219,11 +224,60 @@ assert.equal(wrongSelf.result.correct, false);
 assert.equal(wrongSelf.result.loserId, c.you);
 assert.equal(
   wrongSelf.players.reduce((sum, p) => sum + p.cards, 0),
-  10,
+  11,
 );
+assert.equal(wrongSelf.result.bonusPlayerId, null);
+for (const client of clients)
+  await client(`${root}/action`, { type: "continue" });
+const fourth = await alice(root);
+assert.equal(fourth.round, 4);
+const highestBid = await alice(`${root}/action`, {
+  type: "bid",
+  combination: highestCombination(await poolForTest()),
+  expectedBidId: null,
+  round: 4,
+});
+const highCardCall = {
+  type: "challenge",
+  challenge: "high-card",
+  bidId: highestBid.bid.id,
+  round: 4,
+};
+const competingHighCards = await Promise.allSettled([
+  bob(`${root}/action`, highCardCall),
+  casey(`${root}/action`, highCardCall),
+]);
+assert.equal(
+  competingHighCards.filter((result) => result.status === "fulfilled").length,
+  1,
+);
+const rewarded = await alice(root);
+const rewardedId = rewarded.result.challengerId;
+assert.equal(rewarded.result.bonusPlayerId, rewardedId);
+assert.equal(
+  rewarded.players.find((p) => p.id === rewardedId).cards,
+  fourth.players.find((p) => p.id === rewardedId).cards + 1,
+);
+assert.equal(
+  rewarded.players.find((p) => p.id === a.you).cards,
+  fourth.players.find((p) => p.id === a.you).cards - 1,
+);
+assert.equal(
+  rewarded.players.reduce((sum, p) => sum + p.cards, 0),
+  11,
+);
+for (const client of clients)
+  await client(`${root}/action`, { type: "continue" });
+const fifth = await alice(root);
+assert.equal(fifth.round, 5);
+for (const client of clients) {
+  const own = await client(root);
+  const player = own.players.find((p) => p.id === own.you);
+  assert.equal(player.hand.length, player.cards);
+}
 await alice(`${root}/action`, { type: "leave" });
 await bob(`${root}/action`, { type: "leave" });
 await casey(`${root}/action`, { type: "leave" });
 console.log(
-  "HTTP smoke passed: private sessions, missing-kicker High Card guards, authorization, simultaneous challenges, atomic self High Card, both penalty outcomes, redeal, turn order, leaving.",
+  "HTTP smoke passed: private sessions, kicker guards, authorization, simultaneous challenges, self and external High Card bonuses, no duplicate rewards, larger next-deal hands, turn order, leaving.",
 );

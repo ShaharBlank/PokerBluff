@@ -1,4 +1,5 @@
 export const MAX_PLAYERS = 10;
+export const DECK_SIZE = 52;
 export const KINDS = [
   "single",
   "pair",

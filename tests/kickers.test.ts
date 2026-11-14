@@ -210,7 +210,7 @@ test("High Card on a bare pair is rejected without revealing hands or removing a
   });
 });
 
-test("a correct bid plus self High Card reveals atomically with no penalty, then deals after the bidder", () => {
+test("a correct bid plus self High Card reveals atomically, awards one card, then deals after the bidder", () => {
   const source = table();
   let room = claim(source, { kind: "pair", rank: 14, kickerRank: 13 }, true);
   assert.equal(source.bid, null);
@@ -218,9 +218,11 @@ test("a correct bid plus self High Card reveals atomically with no penalty, then
   assert.equal(room.result!.challenge, "self-high-card");
   assert.equal(room.result!.correct, true);
   assert.equal(room.result!.loserId, null);
+  assert.equal(room.result!.bonusPlayerId, "a");
+  assert.equal(room.players[0].hand.length, 4);
   assert.deepEqual(
     room.players.map((player) => player.cards),
-    [4, 4, 4],
+    [5, 4, 4],
   );
   assert.ok(
     roomView(room, "b").players.every((player) => player.hand !== null),
@@ -233,7 +235,7 @@ test("a correct bid plus self High Card reveals atomically with no penalty, then
   assert.deepEqual(room.lastBids, {});
   assert.deepEqual(
     room.players.map((player) => player.hand.length),
-    [4, 4, 4],
+    [5, 4, 4],
   );
 });
 
@@ -245,11 +247,131 @@ test("an incorrect self High Card with a kicker costs only the bidder one card",
     const room = claim(table(), combination, true);
     assert.equal(room.result!.correct, false);
     assert.equal(room.result!.loserId, "a");
+    assert.equal(room.result!.bonusPlayerId, null);
     assert.deepEqual(
       room.players.map((player) => player.cards),
       [3, 4, 4],
     );
   }
+});
+
+test("a correct external High Card transfers one card to the caller and deals it only next round", () => {
+  const source = claim(table(), { kind: "pair", rank: 14, kickerRank: 13 });
+  const room = highCard(source, "c");
+  assert.equal(room.result!.bonusPlayerId, "c");
+  assert.equal(room.result!.bonusSkipped, false);
+  assert.equal(room.result!.loserId, "a");
+  assert.deepEqual(
+    room.players.map((player) => player.cards),
+    [3, 4, 5],
+  );
+  assert.deepEqual(
+    room.result!.hands.map((hand) => hand.cards.length),
+    [4, 4, 4],
+  );
+  assert.deepEqual(
+    source.players.map((player) => player.cards),
+    [4, 4, 4],
+  );
+  assert.throws(() => highCard(room, "b"), /active round/);
+  const next = advanceRoom(room, 300 + REVEAL_MS);
+  assert.equal(next.turnPlayerId, "b");
+  assert.deepEqual(
+    next.players.map((player) => player.hand.length),
+    [3, 4, 5],
+  );
+  assert.equal(roomView(next, "c").players[2].hand!.length, 5);
+  assert.equal(roomView(next, "a").players[2].hand, null);
+});
+
+test("a self High Card can fill the deck to 52, and bonuses stop when all 52 were already in play", () => {
+  for (const size of [51, 52]) {
+    const room = table();
+    const pool: Card[] = Array.from({ length: size }, (_, index) => ({
+      rank: (index % 13) + 2,
+      suit: Math.floor(index / 13),
+    }));
+    room.players[0].hand = pool.slice(0, -2);
+    room.players[1].hand = pool.slice(-2, -1);
+    room.players[2].hand = pool.slice(-1);
+    for (const player of room.players) player.cards = player.hand.length;
+    const highest = highestCombination(pool)!;
+    const self = claim(room, highest, true);
+    assert.equal(self.result!.correct, true);
+    assert.equal(self.result!.bonusPlayerId, size === 51 ? "a" : null);
+    assert.equal(self.result!.bonusSkipped, size === 52);
+    assert.equal(
+      self.players.reduce((sum, player) => sum + player.cards, 0),
+      52,
+    );
+    assert.equal(self.result!.hands.flatMap((hand) => hand.cards).length, size);
+    const next = advanceRoom(self, 200 + REVEAL_MS);
+    assert.deepEqual(
+      next.players.map((player) => player.hand.length),
+      [50, 1, 1],
+    );
+    const dealt = next.players.flatMap((player) => player.hand);
+    assert.equal(
+      new Set(dealt.map((card) => `${card.rank}:${card.suit}`)).size,
+      52,
+    );
+    const external = highCard(claim(room, highest), "b");
+    assert.equal(external.result!.bonusPlayerId, size === 51 ? "b" : null);
+    assert.equal(external.result!.bonusSkipped, size === 52);
+    assert.equal(external.players[1].cards, size === 51 ? 2 : 1);
+  }
+});
+
+test("Bluff calls never award a bonus card, whether correct or incorrect", () => {
+  for (const combination of [
+    { kind: "pair", rank: 14, kickerRank: 13 },
+    { kind: "four-kind", rank: 14, kickerRank: 13 },
+  ] as const) {
+    const source = claim(table(), combination);
+    const room = applyAction(
+      source,
+      "b",
+      {
+        type: "challenge",
+        challenge: "bluff",
+        bidId: source.bid!.id,
+        round: 1,
+      },
+      300,
+    );
+    assert.equal(room.result!.bonusPlayerId, null);
+    assert.equal(room.result!.bonusSkipped, false);
+    assert.equal(
+      room.players.reduce((sum, player) => sum + player.cards, 0),
+      11,
+    );
+  }
+});
+
+test("the winner can gain a card on the final High Card call, and rematching resets the bonus", () => {
+  let room = createRoom("ABC234", "a", "Alice", 100);
+  room = joinRoom(room, "b", "Bob", 100);
+  room = applyAction(room, "a", { type: "ready" }, 100);
+  room = applyAction(room, "b", { type: "ready" }, 100);
+  room.players[0].cards = 1;
+  room.players[0].hand = cards(2);
+  room.players[1].hand = cards(14, 13, 12, 11);
+  room = highCard(claim(room, { kind: "single", rank: 14 }), "b");
+  assert.equal(room.phase, "finished");
+  assert.equal(room.winnerId, "b");
+  assert.equal(room.players[1].cards, 5);
+  assert.equal(room.result!.bonusPlayerId, "b");
+  room = applyAction(room, "a", { type: "rematch" }, 400);
+  room = applyAction(room, "b", { type: "rematch" }, 400);
+  assert.equal(room.phase, "playing");
+  assert.deepEqual(
+    room.players.map((player) => player.cards),
+    [4, 4],
+  );
+  assert.deepEqual(
+    room.players.map((player) => player.hand.length),
+    [4, 4],
+  );
 });
 
 test("missing-kicker eligibility depends on the public card count, with singles and full houses exempt", () => {
@@ -347,7 +469,7 @@ test("a raise from three Aces to Aces full of Queens can declare High Card in th
   assert.equal(room.result!.bidderId, "b");
   assert.deepEqual(
     room.players.map((player) => player.cards),
-    [4, 4, 4],
+    [4, 5, 4],
   );
   assert.equal(advanceRoom(room, 250 + REVEAL_MS).turnPlayerId, "c");
 });

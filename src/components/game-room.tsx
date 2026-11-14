@@ -13,6 +13,7 @@ import {
   allowsKicker,
   availableBids,
   combinationLabel,
+  DECK_SIZE,
   KINDS,
   KIND_NAMES,
   MAX_PLAYERS,
@@ -440,14 +441,14 @@ export function GameRoom({ code }: { code: string }) {
                               >
                                 <div className="opponent-cards">
                                   {Array.from(
-                                    { length: player.cards },
+                                    { length: Math.min(player.cards, 5) },
                                     (_, i) => (
                                       <PlayingCard
                                         hidden
                                         small
                                         key={i}
                                         style={{
-                                          transform: `translateX(${i * 13}px) rotate(${(i - (player.cards - 1) / 2) * 8}deg)`,
+                                          transform: `translateX(${i * (player.cards > 4 ? 10 : 13)}px) rotate(${(i - (Math.min(player.cards, 5) - 1) / 2) * 8}deg)`,
                                         }}
                                       />
                                     ),
@@ -546,8 +547,11 @@ export function GameRoom({ code }: { code: string }) {
                                   {...card}
                                   className="dealt-card"
                                   style={{
-                                    animationDelay: `${index * 75}ms`,
-                                    transform: `rotate(${(index - (you.hand!.length - 1) / 2) * 3}deg)`,
+                                    animationDelay: `${Math.min(index, 8) * 75}ms`,
+                                    transform:
+                                      you.hand!.length <= 5
+                                        ? `rotate(${(index - (you.hand!.length - 1) / 2) * 3}deg)`
+                                        : undefined,
                                   }}
                                 />
                               ))}
@@ -631,8 +635,8 @@ export function GameRoom({ code }: { code: string }) {
                               {currentBidNeedsKicker
                                 ? "Needs a kicker while extra cards remain."
                                 : view.bid?.playerId === view.you
-                                  ? "“My bid is the highest.”"
-                                  : "“That’s the highest combination.”"}
+                                  ? `My bid is highest.${totalCards < DECK_SIZE ? " Right: +1 card." : ""}`
+                                  : `That bid is highest.${totalCards < DECK_SIZE ? " Right: +1 card." : ""}`}
                             </small>
                           </button>
                         </div>
@@ -1075,7 +1079,9 @@ function BidComposer({
       <p className="action-hint self-high-hint" id="self-high-card-hint">
         {needsKicker
           ? "Add a kicker to enable High Card: extra cards remain in the pool."
-          : "Reveal immediately. Right: nobody loses a card. Wrong: you lose one."}
+          : totalCards < DECK_SIZE
+            ? "Reveal immediately. Right: gain a card for the next deal. Wrong: lose one."
+            : "Reveal immediately. Right: keep your cards; no bonus with all 52 in play. Wrong: lose one."}
       </p>
     </div>
   );
@@ -1087,6 +1093,9 @@ function RoundReveal({ view }: { view: RoomView }) {
   const loser = view.players.find((player) => player.id === result?.loserId);
   const challenger = view.players.find(
     (player) => player.id === result?.challengerId,
+  );
+  const bonusPlayer = view.players.find(
+    (player) => player.id === result?.bonusPlayerId,
   );
   let reason = "";
   if (result?.challenge === "departure")
@@ -1149,6 +1158,21 @@ function RoundReveal({ view }: { view: RoomView }) {
             No one loses a card. On to the next round.
           </span>
         ) : null}
+        {bonusPlayer && (
+          <span className="bonus-note" role="status">
+            {bonusPlayer.id === view.you
+              ? "You gain"
+              : `${bonusPlayer.name} gains`}{" "}
+            a card.
+            {view.phase !== "finished" &&
+              ` ${bonusPlayer.cards} cards in the next deal.`}
+          </span>
+        )}
+        {result?.bonusSkipped && (
+          <span className="bonus-note">
+            All 52 cards were in play, so there is no bonus card.
+          </span>
+        )}
       </div>
       <div className="reveal-facts">
         {result?.bid && (
@@ -1178,6 +1202,11 @@ function RoundReveal({ view }: { view: RoomView }) {
               </span>
               {hand.id === result.loserId && (
                 <span className="minus-card">−1</span>
+              )}
+              {hand.id === result.bonusPlayerId && (
+                <span className="plus-card" aria-label="One bonus card">
+                  +1
+                </span>
               )}
             </div>
             <div className="reveal-card-row">

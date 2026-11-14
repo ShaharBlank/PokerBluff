@@ -40,11 +40,11 @@ A claim that another player's bid does not exist among the combined cards. If co
 One optional extra card of a different rank after a pair, two pair, triple, or four of a kind. Compare the main combination first, then the kicker. High Card includes the highest available kicker when the combination allows one.
 
 **High Card challenge**:
-A claim that another player's bid is the highest permitted combination among the combined cards. If correct, the bidder loses a card; otherwise, the challenger loses a card.
+A claim that another player's bid is the highest permitted combination among the combined cards. If correct, the bidder loses a card and the challenger gains one for the next deal; otherwise, the challenger loses a card. The bonus is skipped if all 52 cards were already in play.
 _Avoid_: High-card hand
 
 **Self-declared High Card**:
-A player declares their own bid the highest combination. This reveals immediately, including when submitted together with a new bid. If correct, nobody loses a card; if incorrect, the declarer loses one card. The next surviving player after the bidder starts the next deal.
+A player declares their own bid the highest combination. This reveals immediately, including when submitted together with a new bid. If correct, the declarer gains one card for the next deal and nobody loses a card; if incorrect, the declarer loses one card. The bonus is skipped if all 52 cards were already in play. The next surviving player after the bidder starts the next deal.
 
 **Reveal**:
 The showing of all hands to settle a challenge.

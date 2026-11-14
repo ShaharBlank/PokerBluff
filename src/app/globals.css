@@ -1722,7 +1722,9 @@ input:disabled {
 }
 .hand-cards {
   display: flex;
+  flex-wrap: wrap;
   gap: 9px;
+  row-gap: 18px;
   justify-content: center;
   padding: 19px 0 5px;
 }
@@ -2080,6 +2082,7 @@ input:disabled {
 }
 .reveal-card-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   justify-content: center;
 }
@@ -2087,6 +2090,21 @@ input:disabled {
   --card-width: 42px;
   border-radius: 4px;
   opacity: 0.7;
+}
+.bonus-note {
+  display: block;
+  margin-top: 10px;
+  color: #d5e8aa;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.revealed-player-name > .plus-card {
+  margin-left: auto;
+  padding: 3px 5px;
+  border-radius: 3px;
+  color: #d5e8aa;
+  background: #cbe28b20;
+  font-size: 8px;
 }
 .reveal-card-row .card-corner {
   top: 4px;

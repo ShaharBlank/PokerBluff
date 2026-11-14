@@ -518,7 +518,7 @@ test("a full 10-player match can finish and every subsequent deal respects the r
     const challenger = room.players.find(
       (player) => !player.left && player.cards > 0 && player.id !== current,
     )!;
-    room = challenge(room, challenger.id, "high-card");
+    room = challenge(room, challenger.id, "bluff");
     if (room.phase !== "finished") {
       now += REVEAL_MS;
       room = advanceRoom(room, now);

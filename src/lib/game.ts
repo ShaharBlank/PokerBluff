@@ -3,6 +3,7 @@ import {
   combinationExists,
   combinationLabel,
   compareCombinations,
+  DECK_SIZE,
   highestCombination,
   MAX_PLAYERS,
   requiresHighCardKicker,
@@ -37,6 +38,8 @@ export type RoundResult = {
   exists: boolean;
   correct: boolean;
   loserId: string | null;
+  bonusPlayerId?: string | null;
+  bonusSkipped?: boolean;
   hands: { id: string; name: string; cards: Card[] }[];
   nextRoundAt: number;
 };
@@ -187,7 +190,7 @@ function nextPlayer(room: Room, after: string): string | null {
 }
 
 function deal(room: Room, now: number) {
-  const deck: Card[] = Array.from({ length: 52 }, (_, i) => ({
+  const deck: Card[] = Array.from({ length: DECK_SIZE }, (_, i) => ({
     rank: (i % 13) + 2,
     suit: Math.floor(i / 13),
   }));
@@ -295,6 +298,9 @@ function resolveChallenge(
         ? bid.playerId
         : id;
   const loser = room.players.find((candidate) => candidate.id === loserId);
+  const correctHighCard = correct && challenge !== "bluff";
+  const bonusPlayerId = correctHighCard && cards.length < DECK_SIZE ? id : null;
+  const bonusSkipped = correctHighCard && bonusPlayerId === null;
   room.result = {
     challenge,
     challengerId: id,
@@ -304,6 +310,8 @@ function resolveChallenge(
     exists,
     correct,
     loserId,
+    bonusPlayerId,
+    bonusSkipped,
     hands: room.players
       .filter((candidate) => candidate.hand.length)
       .map((candidate) => ({
@@ -314,14 +322,20 @@ function resolveChallenge(
     nextRoundAt: now + REVEAL_MS,
   };
   if (loser) loser.cards--;
+  if (bonusPlayerId) player.cards++;
   room.phase = "reveal";
   for (const candidate of room.players) candidate.ready = false;
   const penalty = loser
     ? `${loser.name} loses a card${loser.cards === 0 ? " and becomes a spectator" : ""}.`
     : "No one loses a card.";
+  const bonus = bonusPlayerId
+    ? ` ${player.name} gains a card for the next deal.`
+    : bonusSkipped
+      ? " All 52 cards were in play, so no bonus card is added."
+      : "";
   log(
     room,
-    `${player.name} ${challenge === "self-high-card" ? "declared High Card on their own bid" : `called ${challenge === "bluff" ? "Bluff" : "High Card"}`}. ${correct ? "Good read!" : "Wrong read."} ${penalty}`,
+    `${player.name} ${challenge === "self-high-card" ? "declared High Card on their own bid" : `called ${challenge === "bluff" ? "Bluff" : "High Card"}`}. ${correct ? "Good read!" : "Wrong read."} ${penalty}${bonus}`,
     "challenge",
     now,
   );
